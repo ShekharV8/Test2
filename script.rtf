@@ -1,0 +1,988 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2758
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\froman\fcharset0 Times-Roman;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\partightenfactor0
+
+\f0\fs24 \cf0 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 #\
+# $Header: txkSetAppsLibsTarget.py 120.9.12020000.19 2018/04/06 09:06:21 sbandla ship $\
+#\
+# +===========================================================================+\
+# |   Copyright (c) 2010 Oracle Corporation, Redwood Shores, California, USA\
+# |                         All Rights Reserved\
+# |                        Applications Division\
+# +===========================================================================+\
+# |\
+# | FILENAME\
+# |  txkSetAppsLibsTarget.py\
+# |\
+# | DESCRIPTION\
+# |  This script corrects the source path for ebs-product and ebs-3rdparty shared libs.\
+# |  After domain clone\
+# |\
+# | Command:\
+# |  java weblogic.WLST txkSetAppsLibsTarget.py\
+# |\
+# | Arguments:\
+# |  To get complete list of arguments, specify -h or --help\
+# |\
+# | HISTORY\
+# |     DATE     : Author          : Description\
+# |     04/21/11 : Jyoti           : Initial\
+# +===========================================================================+\
+\
+#Conditionally import wlstModule only when script is executed with jython\
+if __name__ == '__main__':\
+    from wlstModule import *#@UnusedWildImport\
+\
+import os\
+import sys\
+import traceback\
+import getopt\
+from oracle.apps.ad.context import AppsContext\
+from java.util import List\
+from java.lang import *\
+\
+def usage():\
+    #print >> sys.stderr, 'Usage: java weblogic.WLST %s <username> <password> <admin server url> <managed server name>' % sys.argv[0]\
+    """Displays program usage"""\
+    print 'Command:'\
+    print 'java weblogic.WLST txkSetAppsLibsTarget.py'\
+    print ''\
+    print 'Arguments:'\
+    print 'Usage 1: (Before executing, source the environment using <DOMAIN_HOME>/bin/setDomainEnv)'\
+    print ' ' + PREFIX + contextfile + SUFFIX + '<' + contextfile + '>'\
+    print ' ' + PREFIX + javavendor + SUFFIX + '<' + javavendor + '>'\
+    print ' [' + PREFIX + adminpass + SUFFIX + '<' + adminpass + '>' + ', default=' + gArgs[adminpass] + ']'\
+    print ' '\
+    print 'Usage 2: (Before executing, source the environment using <DOMAIN_HOME>/bin/setDomainEnv)'\
+    print ' ' + PREFIX + contextfile + SUFFIX + '<' + contextfile + '>'\
+    print ' ' + PREFIX + javavendor + SUFFIX + '<' + javavendor + '>'\
+    print ' [' + PREFIX + adminpass + SUFFIX + '<' + adminpass + '>' + ', default=' + gArgs[adminpass] + ']'\
+    print ' [' + PREFIX + srcadminurl + SUFFIX + '<' + srcadminurl + '>' + ', default=' + gArgs[srcadminurl] + ']'\
+    print ' '\
+    sys.exit(1)\
+\
+\
+def parseArgs():\
+    """Parses command line arguments"""\
+    try:\
+        optList, otherArgs = getopt.getopt(sys.argv[1:], VALID_SHORT_ARGS, VALID_LONG_ARGS)\
+    except getopt.GetoptError, err:\
+        print str(err)\
+        sys.exit(1)\
+\
+    if (len(otherArgs) > 0):\
+        print 'Following arguments are not recognized:'\
+        print otherArgs\
+        print 'Please verify your inputs, program will exit now...'\
+        sys.exit(1)\
+\
+    for opt, val in optList:\
+        if opt in ('-h', PREFIX + HELP):\
+            usage()\
+        elif opt == PREFIX + nopromptmsg:\
+            gArgs[nopromptmsg] = 'hide';\
+        elif opt == PREFIX + adminpass:\
+            gArgs[adminpass] = val\
+        elif opt == PREFIX + contextfile:\
+            gArgs[contextfile] = val\
+        elif opt == PREFIX + javavendor:\
+            gArgs[javavendor] = val\
+        elif opt == PREFIX + srcadminurl:\
+            gArgs[srcadminurl] = val\
+        else:\
+            assert False, opt + ' An invalid argument !!!'\
+\
+\
+def setArgs():\
+    """Set global variables"""\
+    global wlsadminport\
+    global fileStorePath\
+    context = AppsContext(gArgs[contextfile])\
+    fmwhome = context.getReplVal('s_fmw_home')\
+    fndtop = context.getReplVal('s_fndtop')\
+    hostname = context.getReplVal('s_hostname')\
+    domainname = context.getReplVal('s_wls_admin_domain')\
+    hostname = hostname + '.' + domainname\
+\
+    wlsadminport = context.getReplVal('s_wls_adminport')\
+    fileStorePath = context.getReplVal('s_ne_base') + os.sep + "EBSapps" + os.sep + "appl" + os.sep + "automation" + os.sep + "metadata_path"\
+    comntop = context.getReplVal('s_com')\
+    sBase = context.getReplVal('s_base')\
+    sInstBase = context.getReplVal('s_inst_base')\
+\
+    gArgs[adminurl] = 't3://' + hostname + ':' + wlsadminport\
+    gArgs[adminuser] = context.getReplVal('s_wls_admin_user')\
+    gArgs[ebsproductarchive] = comntop + os.sep + 'shared-libs' + os.sep + 'ebs-product'\
+    gArgs[ebs3rdpartyarchive] = comntop + os.sep + 'shared-libs' + os.sep + 'ebs-3rdparty'\
+    gArgs[ebsformsarchive] = comntop + os.sep + 'shared-libs' + os.sep + 'ebs-forms'\
+    gArgs[javahome] = context.getReplVal('s_jdktop')\
+    gArgs[fmwjavahome] = context.getReplVal('s_fmw_jdktop')\
+    gArgs[ebsdeploymentplansdir] = fmwhome + os.sep + 'Oracle_EBS-app1' + os.sep + 'deployment_plans'\
+    gArgs[sid] = context.getReplVal('s_dbSid')\
+    gArgs[wlsdomainname] = context.getReplVal('s_wls_domain_name')\
+    gArgs[oacorejvmstartproperties] = context.getReplVal('s_oacore_jvm_start_options')\
+    gArgs[formsjvmstartproperties] = context.getReplVal('s_forms_jvm_start_options')\
+    gArgs[oafmjvmstartproperties] = context.getReplVal('s_oafm_jvm_start_options')\
+    gArgs[formsc4wsjvmstartproperties] = context.getReplVal('s_forms-c4ws_jvm_start_options')\
+    gArgs[oaeajvmstartproperties] = context.getReplVal('s_oaea_jvm_start_options')\
+    gArgs[oacoreclasspath] = context.getReplVal('s_oacore_classpath')\
+    gArgs[formsclasspath] = context.getReplVal('s_forms_classpath')\
+    gArgs[oafmclasspath] = context.getReplVal('s_oafm_classpath')\
+    gArgs[formsc4wsclasspath] = context.getReplVal('s_forms-c4ws_classpath')\
+    gArgs[oaeaclasspath] = context.getReplVal('s_oaea_classpath')\
+    gArgs[patchBaseType] = context.getReplVal('s_file_edition_name')\
+    gArgs[ebsdeploymentsdir] =  fmwhome + os.sep + 'Oracle_EBS-app1' + os.sep + 'applications'\
+\
+def validateArgs():\
+    """"Validates command line arguments"""\
+    flag = '0'\
+    global blankArgs\
+    blankArgs = ''\
+    for item in VALID_REQ_AGRS:\
+        if (gArgs[item] == ''):\
+            if item == adminpass:\
+                try:\
+                    if gArgs[nopromptmsg] == 'show':\
+                        print 'Enter the WebLogic Server password: '\
+                    gArgs[adminpass] = sys.stdin.readline()\
+                    gArgs[adminpass] = gArgs[adminpass].strip()\
+                except NameError:\
+                    print ' Invalid WebLogic Server password'\
+            else:\
+                blankArgs = blankArgs + ' ' + item\
+                flag = '1'\
+    return flag\
+\
+\
+def connectAdmin(adminUser, adminPass, adminUrl):\
+    """Connects admin server"""\
+    try:\
+        connect(adminUser, adminPass, adminUrl)\
+    except WLSTException:\
+        print 'Error while connecting Admin Server !!!'\
+        hideDumpStack("true")\
+        exit(exitcode = 1)\
+\
+def disconnectAdmin():\
+    try:\
+        disconnect()\
+    except WLSTException:\
+        print 'ERROR: failed to disconnect from WLS server instance'\
+        hideDumpStack("true")\
+\
+def addEBSFormsLib(appArray):\
+    serverConfig()\
+    cd('/Libraries/')\
+    libraryList = cmo.getLibraries()\
+    for l in libraryList:\
+       lib = String(l.getName())\
+       if(lib.equalsIgnoreCase(EBS_FORMS_APP_NAME)):\
+          appArray.append(lib)\
+    cd('/')\
+\
+def undeployEBSLibs(adminSrvName, appArray):\
+    serverConfig()\
+    cd('Clusters')\
+    myClusters = cmo.getClusters()\
+    global oacoreClusterTarget\
+    global oafmClusterTarget\
+    global formsc4wsClusterTarget\
+    global formsClusterTarget\
+    clusterString = ''\
+    formsCluster = ''\
+\
+    for y in myClusters:\
+        clusterName = String(y.getName())\
+        if(clusterName.startsWith(OACORE_APP_NAME + "_")):\
+            oacoreClusterTarget = 'com.bea:Name=' + y.getName() + ',' + 'Type=Cluster'\
+            clusterString = clusterString + ',' + y.getName()\
+        elif(clusterName.startsWith(OAFM_APP_NAME + "_")):\
+            oafmClusterTarget = 'com.bea:Name=' + y.getName() + ',' + 'Type=Cluster'\
+            clusterString = clusterString + ',' + y.getName()\
+        elif(clusterName.startsWith(FORMSC4WS_APP_NAME + "_")):\
+            formsc4wsClusterTarget = 'com.bea:Name=' + y.getName() + ',' + 'Type=Cluster'\
+            clusterString = clusterString + ',' + y.getName()\
+        elif(clusterName.startsWith(FORMS_APP_NAME + "_")):\
+            formsClusterTarget = 'com.bea:Name=' + y.getName() + ',' + 'Type=Cluster'\
+            formsCluster = y.getName()\
+\
+    try:\
+        for app in appArray:\
+            appName = String(app)\
+            print ' '\
+            print ' Undeploying application ' + app + ' having source reference'\
+            print '================================================================='\
+            if(appName.equalsIgnoreCase(EBS_PRODUCT_APP_NAME)):\
+                undeploy(appName = app, targets = String(clusterString), timeout = 60000)\
+                print ' '\
+            elif(appName.equalsIgnoreCase(EBS_3RDPARTY_APP_NAME)):\
+                undeploy(appName = app, targets = String(clusterString), timeout = 60000)\
+                print ''\
+            elif(appName.equalsIgnoreCase(EBS_FORMS_APP_NAME)):\
+                undeploy(appName = app, targets = String(formsCluster), timeout = 60000)\
+                print ''\
+    except Exception:\
+        print 'Error while removing source patch reference for ' + app + ' !!!'\
+        hideDumpStack("true")\
+        exit(exitcode = 1)\
+\
+    #exit(exitcode=0)\
+\
+\
+def deployEBSLibsInAdmin(app, appArchiveLoc, adminSrvName):\
+    """Deploy all shared libs in Admin server\
+    """\
+    try :\
+        print ''\
+        print 'Deploying shared library: ' + app\
+        print '=================================='\
+        print 'app = ' + app\
+        print 'loc = ' + appArchiveLoc\
+        print ''\
+        deploy(appName = String(app), path = appArchiveLoc, targets = adminSrvName, stageMode = STAGE_MODE, timeout = DEPLOY_TIMEOUT, libraryModule = 'true')\
+    except WLSTException:\
+        print 'Error while deploying ' + app\
+        print '============================='\
+        hideDumpStack("true")\
+        exit(exitcode = 1)\
+\
+\
+def targetEBSSharedLibs(adminSrvName, appArray):\
+    """Deploy shared lib in Admin server and then target this deployment into\
+       required clusters\
+    """\
+    serverConfig()\
+    cd('/')\
+    cd('Servers/' + adminSrvName)\
+    for app in appArray:\
+        appName = String(app)\
+        if(appName.equalsIgnoreCase(EBS_PRODUCT_APP_NAME)):\
+            deployEBSLibsInAdmin(app, gArgs[ebsproductarchive], adminSrvName)\
+        elif(appName.equalsIgnoreCase(EBS_3RDPARTY_APP_NAME)):\
+            deployEBSLibsInAdmin(app, gArgs[ebs3rdpartyarchive], adminSrvName)\
+        elif(appName.equalsIgnoreCase(EBS_FORMS_APP_NAME)):\
+            deployEBSLibsInAdmin(app, gArgs[ebsformsarchive], adminSrvName)\
+\
+    edit()\
+    startEdit()\
+    cd('/Libraries/')\
+    print 'Setting target for EBS shared libraries...'\
+    print '=================================================='\
+    print ''\
+    libraryList = cmo.getLibraries()\
+    adminTarget = 'com.bea:Name=' + adminSrvName + ',' + 'Type=Server'\
+    for l in libraryList:\
+        lib = String(l.getName())\
+        if(lib.equalsIgnoreCase(EBS_PRODUCT_APP_NAME) or (lib.equalsIgnoreCase(EBS_3RDPARTY_APP_NAME))):\
+            print 'Targetting ' + l.getName() + ' into Clusters...'\
+            print '========================================================'\
+            cd(l.getName())\
+            set('Targets', jarray.array([ObjectName(adminTarget) , ObjectName(oacoreClusterTarget), ObjectName(oafmClusterTarget), ObjectName(formsc4wsClusterTarget)], ObjectName))\
+            print ''\
+            cd('..')\
+        elif(lib.equalsIgnoreCase(EBS_FORMS_APP_NAME)):\
+            print 'Targetting ' + l.getName() + ' into Clusters...'\
+            print '========================================================'\
+            cd(l.getName())\
+            set('Targets', jarray.array([ObjectName(adminTarget) , ObjectName(formsClusterTarget)], ObjectName))\
+            print ''\
+            cd('..')\
+    activate()\
+    cancelEdit('y')\
+\
+def undeploySharedLibsinAdmin(adminSrvName, appArray):\
+    """Undeploy OR untarget admin server from EBS apps deployment\
+    """\
+    serverConfig()\
+    print ''\
+    print 'Undeploy shared libs from AdminServer'\
+\
+    cd('Servers/' + adminSrvName)\
+    for app in appArray:\
+        print ' '\
+        print 'Undeploying ' + app + ' from ' + adminSrvName\
+        print '=================================================='\
+        undeploy(appName = app, targets = adminSrvName, timeout = DEPLOY_TIMEOUT)\
+    cd('../..')\
+\
+\
+def getServerStartParameter():\
+\
+    """\
+    Loop through the managed servers cmo, read the server startup properties\
+    and create a map.\
+    This map is serverStartPropMap\
+                key   = server name\
+                value = startup property map for the respective server\
+    """\
+    cd('/')\
+    cd('Servers')\
+    serverList = cmo.getServers()\
+    for serverObj in serverList:\
+        createServerStartPropMap(serverObj)\
+\
+\
+def createServerStartPropMap(serverObj):\
+\
+    """\
+    Create a predefined map for each startup properties\
+    where key is the property name\
+    value is the property value\
+\
+    The propMap is the application specific startup prop map\
+    like for\
+        oacore app it is oacoreSrvStrtPropMap\
+        forms app it is formsSrvStrtPropMap\
+        oafm app it is oafmSrvStrtPropMap\
+        formsc4ws app it is formsc4wsSrvStrtPropMap\
+\
+    """\
+    propMap = \{\}\
+    serverName = String(serverObj.getName())\
+    runBaseType = ""\
+    if(String(gArgs[patchBaseType]).equalsIgnoreCase("fs2")):\
+        runBaseType = "fs1"\
+    else:\
+        runBaseType = "fs2"\
+\
+    print 'Reading server: ' + serverObj.getName()\
+    try:\
+        """serverName = String(serverObj.getName())\
+        """\
+        cd(serverName)\
+        cd('ServerStart')\
+        cd(serverName)\
+        if(serverName.equalsIgnoreCase(ADMIN_SERVER_NAME)):\
+                propMap[JAVA_HOME_PROP] = replaceRunBaseTypeWithPatch(get(JAVA_HOME_PROP), runBaseType, gArgs[patchBaseType])\
+                propMap[JAVA_VENDOR_PROP] = get(JAVA_VENDOR_PROP)\
+        else:\
+                propMap[JAVA_HOME_PROP] = replaceRunBaseTypeWithPatch(get(JAVA_HOME_PROP), runBaseType, gArgs[patchBaseType])\
+                propMap[JAVA_VENDOR_PROP] = get(JAVA_VENDOR_PROP)\
+\
+                pathReplacedStr = replaceRunBaseTypeWithPatch(get(ARGUMENTS_PROP), runBaseType, gArgs[patchBaseType])\
+                domainReplacedStr = resetWlsDomainName(pathReplacedStr)\
+                propMap[ARGUMENTS_PROP] = resetManagementPort(domainReplacedStr)\
+\
+                propMap[CLASSPATH_PROP] = replaceRunBaseTypeWithPatch(get(CLASSPATH_PROP), runBaseType, gArgs[patchBaseType])\
+        cd('../../..')\
+        print ''\
+    except WLSTException:\
+        print 'WLSTException: Error while reading startup properties'\
+        hideDumpStack("true")\
+        exit(exitcode = 1)\
+\
+    print 'Update global server prop Map serverStartPropMap'\
+    serverStartPropMap[serverName] = propMap\
+\
+\
+def replaceRunBaseTypeWithPatch(strArgToReplace, runBaseType, patchBaseType):\
+    """\
+    Replace the run base type default 'fs1' with patch base type default 'fs2'\
+    if contains in the strArgToReplace\
+    """\
+    replacedString = ""\
+    if(strArgToReplace != 0):\
+        try:\
+            sourceString = String(strArgToReplace)\
+            #print 'sourceString = ' + strArgToReplace\
+            if(sourceString.indexOf(String(sBase + os.sep + runBaseType)) > -1):\
+                replacedString = sourceString.replace(str(sBase) + os.sep + runBaseType, str(sBase) + os.sep + patchBaseType)\
+            elif (sourceString.indexOf(String(sInstBase + os.sep + runBaseType)) > -1):\
+                replacedString = sourceString.replace(str(sInstBase) + os.sep + runBaseType, str(sInstBase) + os.sep + patchBaseType)\
+            else:\
+                replacedString = sourceString\
+                print 'Respective sourceString does not contain runBaseType where'\
+                print 'sourceString = ' + strArgToReplace\
+                print 'runBaseType = ' + runBaseType\
+        except Exception:\
+            print 'Exception: Error occurred while replacing run fstype to patch fstype'\
+            exit(exitcode = 1)\
+        except WLSTException:\
+            print 'WLSTException: Error occurred while replacing run fstype to patch fstype'\
+            hideDumpStack("true")\
+            exit(exitcode = 1)\
+    return replacedString\
+\
+\
+def resetManagementPort(strArgToReplace):\
+    """\
+    Now replace the management url as it would point to src AdminServer port\
+    """\
+    replacedString = ""\
+    try:\
+        srcPortIndx = String(gArgs[srcadminurl]).lastIndexOf(":")\
+        srcPort = String(gArgs[srcadminurl]).substring(srcPortIndx + 1, String(gArgs[srcadminurl]).length())\
+\
+        if(String(strArgToReplace).indexOf(srcPort) > -1):\
+            print 'Resetting management url'\
+            print 'srcPort = ' + srcPort\
+            print 'tgtPort = ' + wlsadminport\
+            replacedString = String(strArgToReplace).replace(srcPort, wlsadminport)\
+        else:\
+            print 'Failed to set management url while resetting Managed server startup Arguments'\
+            replacedString = String(strArgToReplace)\
+    except Exception:\
+        print 'WLSTException: Error occurred while resetting management URL'\
+        hideDumpStack("true")\
+    return replacedString\
+\
+def resetWlsDomainName(strArgToReplace):\
+    """\
+    Now replace the old domain name with new domain\
+    """\
+    replacedString = ""\
+    oldDomainName = String("EBS_domain_" + str(gArgs[sid]))\
+    print 'oldDomainName = ' + str(oldDomainName)\
+    print 'newDomainName = ' + str(gArgs[wlsdomainname])\
+    if(strArgToReplace != 0):\
+        try:\
+            sourceString = String(strArgToReplace)\
+            if(sourceString.indexOf(str(oldDomainName)) > -1):\
+                replacedString = sourceString.replace(str(oldDomainName), str(gArgs[wlsdomainname]))\
+            else:\
+                replacedString = sourceString\
+                print 'Respective sourceString does not contain oldDomainName where'\
+                print 'sourceString = ' + str(strArgToReplace)\
+                print 'oldDomainName = ' + str(oldDomainName)\
+        except Exception:\
+            print 'Exception: Error occurred while replacing old domain to new domain'\
+            exit(exitcode = 1)\
+        except WLSTException:\
+            print 'WLSTException: Error occurred while replacing old domain to new domain'\
+            hideDumpStack("true")\
+            exit(exitcode = 1)\
+    return replacedString\
+\
+def processServerStartPropMap(msMBObj):\
+\
+    """\
+    Process server startup property map serverStartPropMap for the\
+    respective server serverName\
+    """\
+    ret = 0\
+    msName = String(msMBObj.getName())\
+    try:\
+        if(msName.equalsIgnoreCase(ADMIN_SERVER_NAME)):\
+            print 'Resetting startup properties for server: ' + msMBObj.getName()\
+            cd(msName)\
+            cd('ServerStart')\
+            cd(msName)\
+            serverNamePropMap = serverStartPropMap[msName]\
+            ret = iterateServerPropMap(serverNamePropMap)\
+            cd('../../..')\
+        elif(msName.startsWith(OACORE_APP_NAME + "_")):\
+            print 'Resetting startup properties for server: ' + msMBObj.getName()\
+            cd(msName)\
+            cd('ServerStart')\
+            cd(msName)\
+            serverNamePropMap = serverStartPropMap[msName]\
+            ret = iterateServerPropMap(serverNamePropMap)\
+            cd('../../..')\
+        elif(msName.startsWith(FORMS_APP_NAME + "_")):\
+            print 'Resetting startup properties for server: ' + msMBObj.getName()\
+            cd(msName)\
+            cd('ServerStart')\
+            cd(msName)\
+            serverNamePropMap = serverStartPropMap[msName]\
+            ret = iterateServerPropMap(serverNamePropMap)\
+            cd('../../..')\
+        elif(msName.startsWith(OAFM_APP_NAME + "_")):\
+            print 'Resetting startup properties for server: ' + msMBObj.getName()\
+            cd(msName)\
+            cd('ServerStart')\
+            cd(msName)\
+            serverNamePropMap = serverStartPropMap[msName]\
+            ret = iterateServerPropMap(serverNamePropMap)\
+            cd('../../..')\
+        elif(msName.startsWith(FORMSC4WS_APP_NAME + "_")):\
+            print 'Resetting startup properties for server: ' + msMBObj.getName()\
+            cd(msName)\
+            cd('ServerStart')\
+            cd(msName)\
+            serverNamePropMap = serverStartPropMap[msName]\
+            ret = iterateServerPropMap(serverNamePropMap)\
+            cd('../../..')\
+        elif(msName.startsWith(OAEA_APP_NAME + "_")):\
+            print 'Resetting startup properties for server: ' + msMBObj.getName()\
+            cd(msName)\
+            cd('ServerStart')\
+            cd(msName)\
+            serverNamePropMap = serverStartPropMap[msName]\
+            ret = iterateServerPropMap(serverNamePropMap)\
+            cd('../../..')\
+    except WLSTException:\
+        print 'WLSTException: Error occurred in processServerStartPropMap'\
+        hideDumpStack("true")\
+        cancelEdit('y')\
+        ret = 1\
+\
+    return ret\
+\
+\
+def iterateServerPropMap(serverNamePropMap):\
+    """\
+    Iterate the map and set the vlaues to respective startup parameter\
+    """\
+    try:\
+        for k, v in serverNamePropMap.items():\
+            #print k, v\
+            set(k, v)\
+    except WLSTException, e:\
+        traceback.print_exc(e)\
+        return(1)\
+    return(0)\
+\
+\
+def updateServerStartParameterWithSourceProps():\
+    ret = 0\
+    cd('/')\
+    edit()\
+    startEdit()\
+    cd('Servers')\
+    serverList = cmo.getServers()\
+    for x in serverList:\
+        # We do not need to set classpath and arguments for admin server\
+        ret = processServerStartPropMap(x)\
+        if(ret != 0):\
+            break\
+    print ''\
+    save()\
+    print ''\
+    activate()\
+    print ''\
+    cancelEdit('y')\
+\
+\
+def updateServerStartParameter(javaHome, fmwJavaHome, javaVendor, oacoreSrvStartArguments,\
+                               formsSrvStartArguments, oafmSrvStartArguments,\
+                               formsc4wsSrvStartArguments, oaeaSrvStartArguments,\
+                               oacoreclasspath, formsclasspath, oafmclasspath,\
+                               formsc4wsclasspath, oaeaclasspath):\
+    cd('/')\
+    edit()\
+    startEdit()\
+    cd('Servers')\
+    serverList = cmo.getServers()\
+    for x in serverList:\
+        serverName = String(x.getName())\
+        # We do not need to set classpath and arguments for admin server\
+        if(serverName.equalsIgnoreCase(ADMIN_SERVER_NAME)):\
+            print 'Updating server: ' + x.getName() + ' ...'\
+            cd(serverName)\
+            cd('ServerStart/' + x.getName())\
+            set('JavaHome', fmwJavaHome)\
+            set('JavaVendor', javaVendor)\
+            print ''\
+            cd('../../..')\
+            print ''\
+        elif(serverName.startsWith(OACORE_APP_NAME + "_")):\
+            print 'Updating server: ' + x.getName() + ' ...'\
+            cd(serverName)\
+            cd('ServerStart/' + x.getName())\
+            set('JavaHome', fmwJavaHome)\
+            set('JavaVendor', javaVendor)\
+            oacoreServerStartArguments = oacoreSrvStartArguments + ' -Dweblogic.Name=' + x.getName()\
+            set('Arguments', oacoreServerStartArguments)\
+            set('ClassPath', oacoreclasspath)\
+            print ''\
+            cd('../../..')\
+            print ''\
+        elif(serverName.startsWith(FORMS_APP_NAME + "_")):\
+            print 'Updating server: ' + x.getName() + ' ...'\
+            cd(serverName)\
+            cd('ServerStart/' + x.getName())\
+            set('JavaHome', javaHome)\
+            set('JavaVendor', javaVendor)\
+            formsServerStartArguments = formsSrvStartArguments + ' -Dweblogic.Name=' + x.getName()\
+            set('Arguments', formsServerStartArguments)\
+            set('ClassPath', formsclasspath)\
+            cd('../../..')\
+            print ''\
+        elif(serverName.startsWith(OAFM_APP_NAME + "_")):\
+            print 'Updating server: ' + x.getName() + ' ...'\
+            cd(serverName)\
+            cd('ServerStart/' + x.getName())\
+            set('JavaHome', fmwJavaHome)\
+            set('JavaVendor', javaVendor)\
+            oafmServerStartArguments = oafmSrvStartArguments + ' -Dweblogic.Name=' + x.getName()\
+            set('Arguments', oafmServerStartArguments)\
+            set('ClassPath', oafmclasspath)\
+            cd('../../..')\
+            print ''\
+        elif(serverName.startsWith(FORMSC4WS_APP_NAME + "_")):\
+            print 'Updating server: ' + x.getName() + ' ...'\
+            cd(serverName)\
+            cd('ServerStart/' + x.getName())\
+            set('JavaHome', fmwJavaHome)\
+            set('JavaVendor', javaVendor)\
+            formsc4wsServerStartArguments = formsc4wsSrvStartArguments + ' -Dweblogic.Name=' + x.getName()\
+            set('Arguments', formsc4wsServerStartArguments)\
+            set('ClassPath', formsc4wsclasspath)\
+            cd('../../..')\
+            print ''\
+        elif(serverName.startsWith(OAEA_APP_NAME + "_")):\
+            print 'Updating server: ' + x.getName() + ' ...'\
+            cd(serverName)\
+            cd('ServerStart/' + x.getName())\
+            set('JavaHome', fmwJavaHome)\
+            set('JavaVendor', javaVendor)\
+            oaeaServerStartArguments = oaeaSrvStartArguments + ' -Dweblogic.Name=' + x.getName()\
+            set('Arguments', oaeaServerStartArguments)\
+            set('ClassPath', oaeaclasspath)\
+            cd('../../..')\
+            print ''\
+    print ''\
+    save()\
+    print ''\
+    activate()\
+    print ''\
+    cancelEdit('y')\
+\
+\
+def updateDeploymentPlanLocation(ebsdeploymentplansdir):\
+    appList = [OACORE_APP_NAME, OAFM_APP_NAME, FORMSC4WS_APP_NAME, FORMS_APP_NAME];\
+    #appArray = jarray.array(appList, String);\
+\
+    # add new application ekanban into the appList\
+    cd('/')\
+    cd('AppDeployments')\
+    deployedApps = cmo.getAppDeployments()\
+    for x in deployedApps:\
+        name = String(x.getName())\
+        if(name.matches("ekanban") or name.matches("accessgate") or name.matches("yms")):\
+            appList.append(name)\
+\
+    for appName in appList:\
+        try:\
+            planpath = ebsdeploymentplansdir + '/' + str(appName) + '/' + 'plan.xml'\
+            print 'Updating Application ' + str(appName) + ' with deployment plan ' + planpath\
+            if(String(appName).equalsIgnoreCase(FORMS_APP_NAME)):\
+                redeploy(appName, planpath)\
+            else:\
+                updateApplication(appName, planpath)\
+\
+        except WLSTException:\
+            print 'Error while updating application ' + str(appName) + ' with deployment plan  !!!'\
+            hideDumpStack("true")\
+            exit(exitcode = 1)\
+\
+def redeployOAEAApplications(ebsdeploymentsdir):\
+    cd('/AppDeployments')\
+    deployedApps = cmo.getAppDeployments()\
+    for x in deployedApps:\
+        name = String(x.getName())\
+        if(name.matches("accessgate") or name.matches("ekanban") or name.matches("yms")):\
+             if(name.matches("accessgate")):\
+                appPath = ebsdeploymentsdir + '/' + str(name) + '/' + 'fndauth.war'\
+             elif(name.matches("yms")):\
+                appPath = ebsdeploymentsdir + '/' + str(name) + '/' + 'YMS.ear'\
+             else:\
+                appPath = ebsdeploymentsdir + '/' + str(name) + '/' + 'ekanban_application1.ear'\
+\
+             targets =  x.getTargets();\
+             targetlist = ','.join([y.getName() for y in targets])\
+\
+             try:\
+                 print ' '\
+                 print 'Undeploying Application ' + str(name) + ' from targets ' + str(targetlist)\
+                 print '================================================================='\
+                 undeploy(name,timeout = 60000);\
+                 print ' '\
+                 print 'Deploying Application ' + str(name) + ' to targets ' + str(targetlist)\
+                 print '============================================================='\
+                 deploy(appName = String(name), path = appPath, targets = targetlist,stageMode = STAGE_MODE,timeout = 60000 )\
+\
+             except WLSTException:\
+                print 'Error while deploying application ' + str(name)\
+                hideDumpStack("true")\
+                exit(exitcode = 1)\
+\
+###########################\
+# Set Nodemanager credential\
+############################\
+def setNodeManagerCredentials(adminUser, adminPass, domainName):\
+    edit()\
+    startEdit()\
+    cd('SecurityConfiguration/' + domainName)\
+    try:\
+        cmo.setNodeManagerUsername(adminUser)\
+        cmo.setNodeManagerPassword(adminPass)\
+        cmo.setDefaultRealm(getMBean('/SecurityConfiguration/' + domainName + '/Realms/myrealm'))\
+        activate()\
+    except WLSTException:\
+        print ' ERROR is setting Nodemanager Credentials.......'\
+        hideDumpStack("true")\
+        exit(exitcode = 1)\
+    cancelEdit('y')\
+    cd('/')\
+\
+##################################\
+# set JNDIName for EBS DS foewls pool\
+#################################\
+def updateJNDINameforWLSConnPool():\
+    cd('/')\
+    edit()\
+    startEdit()\
+    cd('JDBCSystemResources')\
+    try:\
+        allDS = cmo.getJDBCSystemResources()\
+        for tmpDS in allDS:\
+            dsName = tmpDS.getName();\
+            if (String(dsName).equalsIgnoreCase(WLS_POOL_DS)):\
+                cd(dsName)\
+                jdbcResource = cmo.getJDBCResource()\
+                dsParamBean = jdbcResource.getJDBCDataSourceParams()\
+                dsParamBean.setJNDINames(['jdbc/' + gArgs[sid]])\
+\
+    except WLSTException:\
+        print ' ERROR while modifying Datasource JNDI name '\
+        hideDumpStack("true")\
+        exit(exitcode = 1)\
+    save()\
+    print ''\
+    activate()\
+    print ''\
+    cancelEdit('y')\
+    cd('/')\
+\
+\
+#####################################\
+# Update the directory path for file\
+# store of mds-repos\
+#####################################\
+def updateFileStoreDefn():\
+    cd('/')\
+    edit()\
+    startEdit()\
+    cd('FileStores')\
+    try:\
+        allFS = cmo.getFileStores()\
+        for tmpFS in allFS:\
+            fsName = tmpFS.getName();\
+            if(String(fsName).equalsIgnoreCase(MDS_FILE_STORE)):\
+                cd(fsName)\
+                cmo.setDirectory(fileStorePath)\
+    except WLSTException:\
+        print 'ERROR while updating File Store properties '\
+        hideDumpStack("true")\
+        exit(exitcode = 1)\
+    save()\
+    print ''\
+    activate()\
+    print ''\
+    cancelEdit('y')\
+\
+\
+\
+############################\
+# Main - Program entry point\
+############################\
+# Constants\
+PREFIX = '--'\
+SUFFIX = '='\
+HELP = 'help'\
+EBS_PRODUCT_APP_NAME = 'ebs-product'\
+EBS_3RDPARTY_APP_NAME = 'ebs-3rdparty'\
+EBS_FORMS_APP_NAME    = 'ebs-forms'\
+ADMIN_SERVER_NAME = 'AdminServer'\
+ARCHIVE_VERSION = '1.0'\
+STAGE_MODE = 'nostage'\
+DEPLOY_TIMEOUT = 3000000        # 50 minutes\
+OACORE_APP_NAME = 'oacore'\
+FORMS_APP_NAME = 'forms'\
+OAFM_APP_NAME = 'oafm'\
+FORMSC4WS_APP_NAME = 'forms-c4ws'\
+FORMS_APP_NAME = 'forms'\
+\
+# the oaea_server1 MS is the home for apps like ekanban etc\
+OAEA_APP_NAME = 'oaea'\
+\
+WLS_POOL_DS = 'EBSDataSource'\
+JAVA_HOME_PROP = 'JavaHome'\
+JAVA_VENDOR_PROP = 'JavaVendor'\
+ARGUMENTS_PROP = 'Arguments'\
+CLASSPATH_PROP = 'ClassPath'\
+MDS_FILE_STORE = 'mds-repos'\
+\
+\
+# Variables for command-line arguments\
+nopromptmsg = 'nopromptmsg'\
+adminurl = 'adminurl'\
+adminuser = 'adminuser'\
+adminpass = 'adminpass'\
+ebsproductarchive = 'ebsproductarchive'\
+ebs3rdpartyarchive = 'ebs3rdpartyarchive'\
+ebsformsarchive = 'ebsformsarchive'\
+javahome = 'javahome'\
+fmwjavahome = 'fmwjavahome'\
+javavendor = 'javavendor'\
+contextfile = 'contextfile'\
+oacorejvmstartproperties = 'oacorejvmstartproperties'\
+formsjvmstartproperties = 'formsjvmstartproperties'\
+oafmjvmstartproperties = 'oafmjvmstartproperties'\
+formsc4wsjvmstartproperties = 'formsc4wsjvmstartproperties'\
+oaeajvmstartproperties = 'oaeajvmstartproperties'\
+ebsdeploymentplansdir = 'ebsdeploymentplansdir'\
+ebsdeploymentsdir = 'ebsdeploymentsdir'\
+sid = 'sid'\
+wlsdomainname = 'wlsdomainname'\
+srcadminurl = 'srcadminurl'\
+\
+# classpath global variables\
+oacoreclasspath = 'oacoreclasspath'\
+formsclasspath = 'formsclasspath'\
+oafmclasspath = 'oafmclasspath'\
+formsc4wsclasspath = 'formsc4wsclasspath'\
+oaeaclasspath = 'oaeaclasspath'\
+\
+# Global variable\
+clusterString = ''\
+blankArgs = ''\
+oacoreClusterTarget = ''\
+oafmClusterTarget = ''\
+formsc4wsClusterTarget = ''\
+serverStartPropMap = \{\}\
+patchBaseType = 'patchBaseType'\
+wlsadminport = ''\
+sBase = ''\
+sInstBase = ''\
+fileStorePath = ''\
+\
+# Valid arguments\
+VALID_SHORT_ARGS = 'h'\
+VALID_LONG_ARGS = [HELP, adminpass + SUFFIX, contextfile + SUFFIX, javavendor + SUFFIX, nopromptmsg, srcadminurl + SUFFIX]\
+VALID_REQ_AGRS = [adminpass, contextfile, javavendor]\
+\
+\
+# Other global variables\
+gArgs = \{\
+         adminurl          :'',\
+         adminuser         :'weblogic',\
+         adminpass         :'',\
+         ebsproductarchive :'',\
+         ebs3rdpartyarchive:'',\
+                 ebsformsarchive   :'',\
+         javahome          :'',\
+         fmwjavahome       :'',\
+         javavendor        :'',\
+         ebsdeploymentplansdir :'',\
+         ebsdeploymentsdir :'',\
+         sid               :'',\
+         wlsdomainname     :'',\
+         contextfile       :'',\
+         oacorejvmstartproperties :'',\
+         formsjvmstartproperties :'',\
+         oafmjvmstartproperties :'',\
+         formsc4wsjvmstartproperties :'',\
+         oaeajvmstartproperties :'',\
+         oacoreclasspath   :'',\
+         formsclasspath    :'',\
+         oafmclasspath     :'',\
+         formsc4wsclasspath :'',\
+         oaeaclasspath     :'',\
+         nopromptmsg       :'show',\
+         srcadminurl       :'',\
+         patchBaseType     :''\
+         \}\
+\
+\
+# Read the command-line arguments\
+parseArgs()\
+\
+# Sets the global variables\
+setArgs()\
+\
+if(validateArgs() == '1'):\
+    print 'Following required argument(s) are NULL !!!'\
+    print blankArgs\
+    usage()\
+    sys.exit(1)\
+\
+print ''\
+print 'Connecting AdminServer'\
+print '======================'\
+connectAdmin(gArgs[adminuser], gArgs[adminpass], gArgs[adminurl])\
+\
+print 'Retrieve domain name'\
+domainname = cmo.getName();\
+print ''\
+print 'Domian name ' + domainName\
+print ' '\
+print 'Set Nodemanager credentials'\
+print '=============================='\
+setNodeManagerCredentials(gArgs[adminuser], gArgs[adminpass], domainName)\
+\
+\
+appArray = jarray.array([EBS_PRODUCT_APP_NAME, EBS_3RDPARTY_APP_NAME], String);\
+\
+print ' '\
+print 'Add ebs-forms to shared libs list '\
+print '========================================'\
+addEBSFormsLib(appArray)\
+print ' '\
+\
+print 'Remove the wrongly deployed shared libs '\
+print '========================================'\
+undeployEBSLibs(ADMIN_SERVER_NAME, appArray)\
+\
+print ' Deploy and taregt shared libs correctly'\
+print ''\
+targetEBSSharedLibs(ADMIN_SERVER_NAME, appArray)\
+\
+print ' '\
+print 'Untarget AdminServer from EBS shared -libs'\
+print ' '\
+undeploySharedLibsinAdmin(ADMIN_SERVER_NAME, appArray)\
+\
+\
+print ' Updating OAEA applications Source Path '\
+print ''\
+redeployOAEAApplications(gArgs[ebsdeploymentsdir])\
+\
+\
+print ' Updating applications with deployment plan ... '\
+print ''\
+updateDeploymentPlanLocation(gArgs[ebsdeploymentplansdir])\
+\
+print ' Set JNDI name for data source' + WLS_POOL_DS\
+print '======================================='\
+updateJNDINameforWLSConnPool()\
+\
+print ' Update directory path for file store ' + MDS_FILE_STORE\
+print '=================================================='\
+updateFileStoreDefn()\
+\
+print 'Adding server start properties ...'\
+print '========================================'\
+print ''\
+if(gArgs[srcadminurl] == ''):\
+    updateServerStartParameter(gArgs[javahome], gArgs[fmwjavahome], gArgs[javavendor], gArgs[oacorejvmstartproperties],\
+                               gArgs[formsjvmstartproperties], gArgs[oafmjvmstartproperties],\
+                               gArgs[formsc4wsjvmstartproperties], gArgs[oaeajvmstartproperties],\
+                               gArgs[oacoreclasspath], gArgs[formsclasspath], gArgs[oafmclasspath],\
+                               gArgs[formsc4wsclasspath], gArgs[oaeaclasspath])\
+else:\
+    print ''\
+    print 'Disconnecting from current WLS server instance session'\
+    print '===================================================='\
+    disconnectAdmin()\
+    print ''\
+    print 'Connecting Source AdminServer'\
+    print '============================='\
+    connectAdmin(gArgs[adminuser], gArgs[adminpass], gArgs[srcadminurl])\
+    print ''\
+    print 'Reading ServerStart MBean'\
+    print '============================='\
+    getServerStartParameter()\
+    disconnectAdmin()\
+    print ''\
+    print 'Connecting Target AdminServer'\
+    print '============================='\
+    connectAdmin(gArgs[adminuser], gArgs[adminpass], gArgs[adminurl])\
+    updateServerStartParameterWithSourceProps()\
+}
